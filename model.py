@@ -5,6 +5,7 @@ import warnings
 
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.layers import core as core_layers
 
 import utils
 
@@ -45,18 +46,6 @@ def multinomial_3d(x):
     return tf.reshape(m, (a, b))
 
 
-def multinomial_2d(x):
-    """Samples from a multinomial distribution from 2D Tensor.
-    Args:
-        x: Tensor with shape (batch_size, classes)
-    Returns:
-        Tensor with shape (batch_size), sampled from `classes`.
-    """
-    a = tf.shape(x)[0]
-    m = tf.multinomial(x, 1)
-    return tf.reshape(m, (a,))
-
-
 class SeqGAN(object):
     """The SeqGAN model.
     Args:
@@ -79,7 +68,6 @@ class SeqGAN(object):
         self._sess = sess
         self._num_classes = num_classes
         self._only_cpu = only_cpu
-        self._weights = []
         self._learn_phase = learn_phase
         self.log_every = log_every
 
@@ -191,7 +179,6 @@ class SeqGAN(object):
                                      shape=shape,
                                      initializer=initializer,
                                      trainable=trainable)
-        self._weights.append(weight)
 
         return weight
 
@@ -201,17 +188,18 @@ class SeqGAN(object):
             use_multinomial: bool (default: True), whether or not to sample
                 from a multinomial distribution for each consecutive step of
                 the RNN.
-            num_rnns: int (default: 128), number of RNNs to stack.
-            rnn_dims: int (default: 3), number of outputs of the RNN.
+            num_rnns: int (default: 3), number of RNNs to stack.
+            rnn_dims: int (default: 128), number of outputs of the RNN.
         Returns:
             a tensor representing the generated question.
         """
 
         with tf.variable_scope('generator'):
 
-            # Creates the RNN output -> model output function.
-            output_W = self.get_weight('output_W', (rnn_dims, self.num_classes))
-            output_fn = lambda x: tf.matmul(x, output_W)
+            # Creates the RNN output -> model output layer.
+            output_layer = core_layers.Dense(self.num_classes)
+
+            embeddings = tf.get_variable('embedding', [self.num_classes, rnn_dims])
 
             # Creates the RNN cell.
             cells = [tf.contrib.rnn.GRUCell(rnn_dims) for _ in range(num_rnns)]
@@ -234,16 +222,11 @@ class SeqGAN(object):
             # Creates the teacher forcing op.
             teacher_inp = tf.concat([tf.zeros_like(self.text_pl[:, :1]),
                                      self.text_pl[:, :-1]], axis=1)
-            teacher_inp = tf.one_hot(teacher_inp, self.num_classes)
-            teacher_fn = tf.contrib.seq2seq.simple_decoder_fn_train(
-                encoder_state)
+            teacher_inp = tf.nn.embedding_lookup(embeddings, teacher_inp)
             seq_len = tf.ones((batch_size,), 'int32') * self.text_len_pl
-            teacher_preds, _, _ = tf.contrib.seq2seq.dynamic_rnn_decoder(
-                cell=cell,
-                inputs=teacher_inp,
-                decoder_fn=teacher_fn,
-                sequence_length=seq_len)
-            teacher_preds = tf.einsum('ijk,kl->ijl', teacher_preds, output_W)
+            teacher_preds, _ = tf.nn.dynamic_rnn(cell, teacher_inp, sequence_length=seq_len, dtype='float32')
+
+            teacher_preds = output_layer.apply(teacher_preds)
             teach_loss = tf.contrib.seq2seq.sequence_loss(
                 logits=teacher_preds,
                 targets=self.text_pl,
@@ -254,45 +237,29 @@ class SeqGAN(object):
             tf.get_variable_scope().reuse_variables()
 
             if use_multinomial:
-                def infer_fn(time, state, input_var, output_var, ctx):
-                    if output_var is None:
-                        next_id = tf.zeros((batch_size,), 'int32')
-                        state = encoder_state
-                        output_var = tf.zeros((self.num_classes,))
-
-                    else:
-                        output_var = output_fn(output_var)
-                        next_id = tf.cond(
-                            self.sample_pl,
-                            lambda: tf.argmax(output_var, axis=-1),
-                            lambda: multinomial_2d(output_var))
-
-                    next_input = tf.one_hot(next_id, self.num_classes)
-                    done = tf.cond(tf.greater_equal(time, self.text_len_pl),
-                                   lambda: tf.ones((batch_size,), 'bool'),
-                                   lambda: tf.zeros((batch_size,), 'bool'))
-
-                    return done, state, next_input, output_var, ctx
-
+                helper = tf.contrib.seq2seq.SampleEmbeddingHelper(
+                    embedding=embeddings,
+                    start_tokens=tf.tile([0], [batch_size]),
+                    end_token=1,
+                    seed=1)
             else:
-                embeddings = tf.eye(self.num_classes)
-                infer_fn = tf.contrib.seq2seq.simple_decoder_fn_inference(
-                    output_fn=output_fn,
-                    encoder_state=encoder_state,
-                    embeddings=embeddings,
-                    start_of_sequence_id=0,
-                    end_of_sequence_id=-1,
-                    maximum_length=self.text_len_pl - 1,
-                    num_decoder_symbols=self.num_classes,
-                    name='decoder_inference_fn')
+                helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
+                    embedding=embeddings,
+                    start_tokens=tf.tile([0], [batch_size]),
+                    end_token=1)
 
-            generated_sequence, _, _ = tf.contrib.seq2seq.dynamic_rnn_decoder(
+            decoder = tf.contrib.seq2seq.BasicDecoder(
                 cell=cell,
-                decoder_fn=infer_fn)
+                helper=helper,
+                initial_state=encoder_state,
+                output_layer=output_layer)
+            (logits, sample_id), _, _  = tf.contrib.seq2seq.dynamic_decode(
+                decoder=decoder,
+                impute_finished=True,
+                maximum_iterations=self.text_len_pl - 1)
 
-            class_scores = tf.nn.softmax(generated_sequence)
-            generated_sequence = tf.argmax(generated_sequence, axis=-1)
-            # generated_sequence = multinomial_3d(generated_sequence)
+            class_scores = tf.nn.softmax(logits)
+            generated_sequence = tf.argmax(logits, axis=2)
 
         tf.summary.scalar('loss/teacher', teach_loss)
 
@@ -309,7 +276,7 @@ class SeqGAN(object):
                 of the model.
             rnn_dims: int, number of dimensions in each RNN.
         Returns:
-            a tensor with shape (batch_size) that predicts whether the input
+            a tensor with shape (batch_size, num_timesteps, num_classes) that predicts whether the input
                 tensor is real or fake.
         """
 
@@ -318,8 +285,10 @@ class SeqGAN(object):
             if reuse:
                 tf.get_variable_scope().reuse_variables()
 
+            embeddings = tf.get_variable('embedding', [self.num_classes, rnn_dims])
+
             # Encodes the tensors as one-hot.
-            input_ohe = tf.one_hot(input_tensor, self.num_classes)
+            input_enc = tf.nn.embedding_lookup(embeddings, input_tensor)
 
             # Creates the RNN cell.
             cells = [tf.contrib.rnn.GRUCell(rnn_dims) for _ in range(num_rnns)]
@@ -327,13 +296,15 @@ class SeqGAN(object):
             cell = tf.contrib.rnn.FusedRNNCellAdaptor(cell, True)
 
             # Calls the cell, doing the necessary transpose op.
-            input_ohe = tf.transpose(input_ohe, (1, 0, 2))
-            rnn_output, _ = cell(input_ohe, dtype='float32')
+            input_enc = tf.transpose(input_enc, (1, 0, 2))
+            rnn_output, _ = cell(input_enc, dtype='float32')
             rnn_output = tf.transpose(rnn_output, (1, 0, 2))
 
             # Reduces to binary prediction.
             pred_W = self.get_weight('pred_W', (rnn_dims, 1))
             preds = tf.einsum('ijk,kl->ijl', rnn_output, pred_W)
+            preds = tf.squeeze(preds, [2])
+
             preds = tf.sigmoid(preds)
 
         return preds
