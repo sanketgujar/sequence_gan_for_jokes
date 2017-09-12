@@ -39,6 +39,8 @@ if __name__ == '__main__':
                         help='directory of the trained model')
     parser.add_argument('-c', '--only_cpu', default=True, action='store_true',
                         help='if set, only build weights on cpu')
+    parser.add_argument('-i', '--num', default=10, type=int,
+                        help='number of sample to generate')
     args = parser.parse_args()
 
     if not os.path.exists(args.dictionary):
@@ -56,5 +58,6 @@ if __name__ == '__main__':
     model.build()
     model.load(ignore_missing=True)
 
-    g = model.generate(args.sample_len)
-    print('Generated text:', utils.detokenize(g, rev_dict))
+    for _ in range(args.num):
+        g = model.generate(args.sample_len)
+        print('Generated text:', utils.detokenize(g, rev_dict))
