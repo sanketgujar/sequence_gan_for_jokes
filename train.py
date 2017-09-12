@@ -46,6 +46,8 @@ if __name__ == '__main__':
                         help='learning phase (None for synchronized)')
     parser.add_argument('-d', '--logdir', default='model/', type=str,
                         help='where to store the trained model')
+    parser.add_argument('-r', '--dictionary', default='dictionary.pkl', type=str,
+                        help='path to the dictionary')
 
     args = parser.parse_args()
 
@@ -54,7 +56,7 @@ if __name__ == '__main__':
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
 
-    dictionary, rev_dict = utils.get_dictionary(args.text)
+    dictionary, rev_dict = utils.get_dictionary(args.text, args.dictionary)
     num_classes = len(dictionary)
 
     iterator = utils.tokenize(args.text,
