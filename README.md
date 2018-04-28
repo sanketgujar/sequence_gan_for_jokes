@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # seqgan-text-tensorflow
 
 SeqGAN implementation for generating text using an RNN.
@@ -65,3 +66,6 @@ optional arguments:
   -p LEARN_PHASE, --learn_phase LEARN_PHASE
                         learning phase (None for synchronized)
 ```
+=======
+# sequence_gan_for_jokes
+>>>>>>> 5ad2875819559c3fea30a7a487c241de354d766f
