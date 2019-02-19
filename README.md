@@ -1,25 +1,30 @@
-<<<<<<< HEAD
-# seqgan-text-tensorflow
+# JokeR: seqgan for Joke generation (Tensorflow)
+SeqGAN implementation for generating jokes using an RNN and LSTM.
 
-SeqGAN implementation for generating text using an RNN.
-
-## Links
-
- - [Paper](https://arxiv.org/abs/1609.05473)
- - [Canonical Implementation](https://github.com/LantaoYu/SeqGAN)
- - [Another Implementation](https://github.com/ofirnachum/sequence_gan)
+Generating jokes is a challenging and understudied task of Natural Language Processing. A computer that intends and succeeds to generate
+jokes could be deemed artificially intelligent. We
+present a couple of novel approaches to joke generation, such as using SeqGAN and a language model. We implement a variety of word-level
+models to tackle parts of the joke-generation
+problem, namely text generation and joke classification. Ideally, merging these steps will allow for a model to write joke candidates, that
+are then pruned by a well-trained classifier. We
+train these models from a corpus of 231,657 userwritten jokes scraped from reddit.com
 
 ## Samples
-
-By default the model is trained on some Lorem Ipsum text. After just 1000 minibatches, the model produces lorem-looking outputs:
+Some sample jokes that the model generated.
 
 ```
-en  eros  ells  at malesuada portere eget  Prlesent eellus egem ntum eget eel nec eel us. Nullam eu t mattis  on nisl eed euem eget vellus et malesuada  Num eu melles eg meliuenium el malesuada au eel uentum et  Ned erit est s erat  euismod eu malesuada  Nulla  velis  velitelis eget libero  Nullam sec us eros eel s egett s vusci  eel pem lacinia sed eem s vel massa vel  vel eu sapien, ante  el tempor  Sed eget tempur  eras eu lacinia ligula. Nullam posuere eills ar er malesuada eelit. Nullam sed  aancidunt lacus. Nulla vacien euis od luruus eul e et melus. Nulla eu sem aelierae et maleis eu eu musr sed ac erem. Ienc pretium necue elit  Nulla ac eget semper eget  Nullam ornare egim  Nullam eget lacinia nisl  elterdum  Nunc egettaugue velit llum eget. Nunec fermentum loctus  elis at mattis eel mellentesque  Nuscipit eros euementum egim nella  Nullam vel t lacus eel ee lacis eu m euet  mellentesque erat vetae eret lactus eells elet. Prasellus eget a faucibus eisus vel erit. Nullam velit a
+• I was in the bar, but I wasn’t the bartender.
+
+• What do you call a bar, a bar because it was a bar
+
+• What do you call a girlfriend? a child to the bar.
+
+• I was in the bar and the bar says I am not a bar.
 ```
 
 ## Usage
 
-To train the default model to generate lines from `lorem.txt`, use:
+To train the default model to generate lines from `sample_text.txt`, use:
 
 ```bash
 >>> ./train
@@ -66,6 +71,9 @@ optional arguments:
   -p LEARN_PHASE, --learn_phase LEARN_PHASE
                         learning phase (None for synchronized)
 ```
-=======
-# sequence_gan_for_jokes
->>>>>>> 5ad2875819559c3fea30a7a487c241de354d766f
+
+## Links
+ - [Course Paper](https://sanketgujar.github.io/ext/pap/pdfs/joke.pdf)
+ - [Paper](https://arxiv.org/abs/1609.05473)
+ - [Canonical Implementation](https://github.com/LantaoYu/SeqGAN)
+ - [Another Implementation](https://github.com/ofirnachum/sequence_gan)
